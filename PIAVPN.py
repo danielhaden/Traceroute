@@ -1,4 +1,5 @@
 import subprocess
+import time as t
 
 class PIAVPN:
     """Establishes VPN via Private Internet Access(PIA)"""
@@ -19,8 +20,16 @@ class PIAVPN:
         for region in self.regions:
             print(region)
 
-    def get_regions(self):
-        return self.regions
+    def iter_regions(self):
+        for region in self.regions:
+            yield region
+
+    def connect_state(self):
+        val = subprocess.check_output([self.execPath, "get", "vpnip"])
+        if val.strip() == b'Unknown':
+            return False
+
+        return True
 
     def disconnect(self):
         subprocess.call([self.execPath, "disconnect"])
@@ -28,7 +37,17 @@ class PIAVPN:
     def connect_auto(self):
         subprocess.call([self.execPath, "connect"])
 
-    def connect_to_region(self, region):
+    def connect_to_region(self, region, verbose=False):
         self.disconnect()
         subprocess.call([self.execPath, "set", "region", region])
         self.connect_auto()
+
+        # checks connection
+        status = self.connect_state()
+        while not status:
+            status = self.connect_state()
+
+        if verbose:
+            print("connected to: ", region)
+
+        return True
