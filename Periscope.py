@@ -4,11 +4,17 @@ import requests
 import random
 import json
 
-
 class PeriscopeQuery():
     credentials = PeriscopeKey()
     api_url = "https://periscope.caida.org/api/v2"
     measurement = dict()
+    queryID = None
+    queryStatus = None
+    queryResult = None
+
+    def __init__(self, id):
+        self.queryID = id
+        self.check_status()
 
     def gen_headers(self, data):
         headers = {
@@ -57,32 +63,60 @@ class PeriscopeQuery():
 
         if response.status_code == 201:  ## HTTP 201 = POST request has been successfully created on server
             decoded_response = response.json()
+            self.queryID = decoded_response["id"]
+            self.check_status()
             return decoded_response["id"]
 
         else:
             print("Response status code error: ", response.status_code)
-            exit(1)
-
-    def get_status(self, id):
-        """Checks status of Periscope query"""
-
-        requestURL = self.api_url + "/measurement/" + str(id)
-        response = requests.get(requestURL)
-        decoded_response = response.json()
-        return decoded_response["status"]
-
-    def get_result(self, id):
-        """pulls result from Periscope"""
-
-        requestURL = self.api_url + "/measurement/" + str(id) + "/result?format=raw"
-        response = requests.get(requestURL)
-        decoded_response = response.json()
-
-        if self.get_status(id)['pending'] != 0:
-            print("Results not ready. Query pending...")
             return None
 
-        return decoded_response["queries"]
+    def check_status(self, verbose=False):
+        """Checks status of Periscope query"""
+
+        if self.queryID == None:
+            if verbose:
+                print("No query was run...")
+            return None
+
+        elif self.queryStatus != None and self.queryStatus['pending'] == 0:
+            if verbose:
+                print(self.queryStatus)
+
+            if self.queryResult == None:
+                self.get_result()
+
+            return self.queryStatus
+
+        else:
+            requestURL = self.api_url + "/measurement/" + str(self.queryID)
+            response = requests.get(requestURL)
+
+            decoded_response = response.json()
+
+            if 'errors' in decoded_response.keys():
+                print("Invalid ID...")
+                return None
+
+            self.queryStatus = response.json()['status']
+
+            if verbose:
+                print(self.queryStatus)
+
+            return self.queryStatus
+
+    def get_result(self):
+        """pulls result from Periscope"""
+
+        if self.queryStatus == None or self.queryStatus['pending'] != 0:
+            print("Query is not complete...")
+            return None
+
+        requestURL = self.api_url + "/measurement/" + str(self.queryID) + "/result?format=raw"
+        response = requests.get(requestURL)
+        self.queryResult = response.json()
+
+        return self.queryResult
 
     def parse_result(self, result):
         """returns nested dictionary of results"""
@@ -107,7 +141,7 @@ class PeriscopeQuery():
                                 trace[hop]['time'] = ['*', '*', '*']
 
                             else:
-                                trace[hop]['ip'] = words[1]
+                                trace[hop]['ip'] = words[1].strip('()')
                                 trace[hop]['name'] = words[0]
                                 trace[hop]['time'] = [words[2], words[4], words[6]]
 
