@@ -12,9 +12,11 @@ class PeriscopeQuery():
     queryStatus = None
     queryResult = None
 
-    def __init__(self, id):
+    def __init__(self, id=None):
         self.queryID = id
-        self.check_status()
+
+        if self.queryID != None:
+            self.check_status()
 
     def gen_headers(self, data):
         headers = {
@@ -24,10 +26,29 @@ class PeriscopeQuery():
         }
         return headers
 
-    def get_available_lg_nodes(self, number=None):
+    def get_lg_nodes(self, command="traceroute", asn=None, router=None, city=None, country=None, number=None, verbose=False):
+        """lists available looking glass servers. Number arg sets number of randomly selected hosts"""
         hosts = list()
-        response = requests.get(self.api_url + "/host/list?command=traceroute")
+        requestURL = self.api_url + "/host/list?command=" + command
+
+        if asn != None:
+            requestURL += "&asn=" + str(asn)
+
+        if router != None:
+            requestURL += "&router=" + router
+
+        if city != None:
+            requestURL += "&city=" + city.replace(" ","+")
+
+        if country != None:
+            requestURL += "&country=" + country
+
+        response = requests.get(requestURL)
         available_hosts = response.json()
+
+        if verbose:
+            for host in available_hosts:
+                print(host)
 
         if number is None:
             for host in available_hosts:
@@ -118,11 +139,11 @@ class PeriscopeQuery():
 
         return self.queryResult
 
-    def parse_result(self, result):
+    def parse_result(self):
         """returns nested dictionary of results"""
 
         out = dict()
-        for index, item in enumerate(result):
+        for index, item in enumerate(self.queryResult['queries']):
             if item['status'] == 'completed':
                 lines = item['result'].splitlines()
 
@@ -148,3 +169,12 @@ class PeriscopeQuery():
                 out[index] = trace
 
         return out
+
+    def get_trace_indices(self):
+        result = self.parse_result()
+        return list(result.keys())
+
+    def items(self, tracenumber):
+        result = self.parse_result()
+        for hop, data in result[tracenumber].items():
+            yield hop, data['ip'], data['name'], data['time']
