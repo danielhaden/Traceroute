@@ -7,7 +7,11 @@ class CLI(cmd.Cmd):
         exit(0)
 
     def do_getlgnodes(self, line):
-        args = {}
+        args = {"command": "traceroute",
+                "asn": None,
+                "city": None,
+                "country": None,
+                "number": None}
         rawArgs = self.parseline(line)[2]
 
         for item in rawArgs.split(" "): ## Parses line arguments
@@ -18,13 +22,23 @@ class CLI(cmd.Cmd):
 
             try:
                 arg, value = item.split("=")
+                args[arg] ## throws KeyError if arg is not valid
                 args[arg] = value
 
-                query = PeriscopeQuery()
-                query.get_lg_nodes(verbose=True)
 
-            except:
-                print("invalid syntax")
+            except KeyError:
+                print("invalid parameter...")
+
+            except ValueError:
+                print("invalid syntax...")
+
+        query = PeriscopeQuery()
+        query.get_lg_nodes(command=args["command"],
+                           asn=args["asn"],
+                           city=args["city"],
+                           country=args["country"],
+                           number=args["number"],
+                           verbose=True)
 
 
     def do_EOF(self, line):

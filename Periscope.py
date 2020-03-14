@@ -28,7 +28,7 @@ class PeriscopeQuery():
 
     def get_lg_nodes(self, command="traceroute", asn=None, router=None, city=None, country=None, number=None, verbose=False):
         """lists available looking glass servers. Number arg sets number of randomly selected hosts"""
-        hosts = list()
+        hosts = []
         requestURL = self.api_url + "/host/list?command=" + command
 
         if asn != None:
@@ -46,22 +46,32 @@ class PeriscopeQuery():
         response = requests.get(requestURL)
         available_hosts = response.json()
 
-        if verbose:
-            for host in available_hosts:
-                print(host)
+        try:
+            if number is None:
+                for host in available_hosts:
+                    hosts.append({"asn": host["asn"], "router": host["router"]})
 
-        if number is None:
-            for host in available_hosts:
-                hosts.append({"asn": host["asn"], "router": host["router"]})
+                if verbose:
+                    for host in available_hosts:
+                        print(host)
 
-            return hosts
+                return hosts
 
-        else:
-            selected_hosts = random.sample(available_hosts, number)
-            for host in selected_hosts:
-                hosts.append({"asn": host["asn"], "router": host["router"]})
+            else:
+                selected_hosts = random.sample(available_hosts, number)
+                for host in selected_hosts:
+                    hosts.append({"asn": host["asn"], "router": host["router"]})
 
-            return hosts
+                if verbose:
+                    for host in available_hosts:
+                        print(host)
+
+                return hosts
+
+        except TypeError:
+            if 'errors' in available_hosts.keys(): ## checks that query arg is valid
+                print("Invalid ID...")
+                return None
 
     def traceroute(self, destination, hosts, verbose=False):
         """submits traceroute query from each host to destination"""
