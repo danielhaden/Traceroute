@@ -1,8 +1,8 @@
 import json
 import os
-class JSONStorage:
+class StorageInterface:
     filename = ".pastqueries"
-    data = None
+    data = {}
 
     def __init__(self):
         f = open(self.filename)
@@ -44,22 +44,18 @@ class JSONStorage:
             f.write(json.dumps(entry, indent=4))
             f.write(']')
 
-    def get_queries(self, field='id', term=None):
-        """returns list of ids matching search criteria"""
+    def get_query(self, id):
+        """returns query by ID"""
+        try:
+            return self.data[id]
 
-        result = []
-        if self.data == None:
-            return result
+        except KeyError as err:
+            print(err.args[0], "is invalid ID...")
+            return None
 
-        for item in self.data:
-            if term==None:
-                result.append(item['id'])
-
-            else:
-                if item[field] == term:
-                    result.append(item['id'])
-
-        return result
+    def get_all_saved_queries(self):
+        for key, value in self.data.items():
+            print(key, value)
 
     def clear_file(self):
         with open(self.filename, mode='w', encoding='utf-8') as f:
