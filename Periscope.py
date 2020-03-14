@@ -3,6 +3,7 @@ from PeriscopeKey import PeriscopeKey
 import requests
 import random
 import json
+from xml.etree import ElementTree as ET
 
 class PeriscopeQuery():
     credentials = PeriscopeKey()
@@ -46,10 +47,15 @@ class PeriscopeQuery():
         response = requests.get(requestURL)
         available_hosts = response.json()
 
+
         try:
             if number is None:
                 for host in available_hosts:
-                    hosts.append({"asn": host["asn"], "router": host["router"]})
+                    try:
+                        hosts.append({"asn": host["asn"], "router": host["router"], "country": host["country"]})
+
+                    except KeyError as err:
+                        hosts.append({"asn": host["asn"], "router": host["router"], "country": None})
 
                 if verbose:
                     for host in available_hosts:
@@ -60,7 +66,7 @@ class PeriscopeQuery():
             else:
                 selected_hosts = random.sample(available_hosts, number)
                 for host in selected_hosts:
-                    hosts.append({"asn": host["asn"], "router": host["router"]})
+                    hosts.append({"asn": host["asn"], "router": host["router"], "country": host["country"]})
 
                 if verbose:
                     for host in available_hosts:
@@ -72,6 +78,29 @@ class PeriscopeQuery():
             if 'errors' in available_hosts.keys(): ## checks that query arg is valid
                 print("Invalid ID...")
                 return None
+
+    def get_lg_countries(self, verbose=False):
+        hosts = self.get_lg_nodes()
+        countries = set()
+
+        if verbose:
+            tree = ET.parse("XML Country List")
+            root = tree.getroot()
+
+        for host in hosts:
+            if host['country'] != None:
+                countries.add(host['country'])
+
+        if verbose:
+            for country in countries:
+                try:
+                    e = root.findall("./country[@code='%s']" % country.lower())
+                    print(country, ":", e[0].text)
+
+                except IndexError as err:
+                    pass
+
+        return countries
 
     def traceroute(self, destination, hosts, verbose=False):
         """submits traceroute query from each host to destination"""
