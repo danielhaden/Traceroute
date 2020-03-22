@@ -47,7 +47,6 @@ class PeriscopeQuery():
         response = requests.get(requestURL)
         available_hosts = response.json()
 
-
         try:
             if number is None:
                 for host in available_hosts:
@@ -165,7 +164,7 @@ class PeriscopeQuery():
 
             return self.queryStatus
 
-    def get_result(self):
+    def get_result(self, verbose=False):
         """pulls result from Periscope"""
 
         if self.queryStatus == None or self.queryStatus['pending'] != 0:
@@ -175,6 +174,10 @@ class PeriscopeQuery():
         requestURL = self.api_url + "/measurement/" + str(self.queryID) + "/result?format=raw"
         response = requests.get(requestURL)
         self.queryResult = response.json()
+
+        if verbose:
+            for key, value in self.queryResult.items():
+                print(key, ":", value)
 
         return self.queryResult
 
@@ -212,6 +215,14 @@ class PeriscopeQuery():
     def get_trace_indices(self):
         result = self.parse_result()
         return list(result.keys())
+
+    def print_trace(self):
+        result = self.parse_result()
+        for key, value in result.items():
+            for step, data in value.items():
+                print(step, "\t",data['ip'], "\t", data['name'], "\t", data['time'])
+
+            print("\n")
 
     def items(self, tracenumber):
         result = self.parse_result()

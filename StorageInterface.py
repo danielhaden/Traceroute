@@ -1,7 +1,10 @@
 import json
 import os
+from Periscope import *
+
+
 class StorageInterface:
-    filename = ".pastqueries"
+    filename = ".store.json"
     data = {}
 
     def __init__(self):
@@ -16,38 +19,60 @@ class StorageInterface:
         else:
             self.data = None
 
+    def exists(self, id):
+        """returns true if query is already saved, false otherwise"""
+        for key in self.data.keys():
+            if key == id:
+                return True
+
+        return False
+
+    def _update_to_file(self):
+        """Overwrites JSON file with contents of object data dictionary"""
+        with open(self.filename, 'w') as f:
+            data = json.dump(self. data, f, indent=4)
+
     def save_query(self, query):
-        firstItemFlag = False
-        if os.stat(self.filename).st_size == 0:
-            firstItemFlag = True
-            with open(self.filename, mode='w', encoding='utf-8') as f:
-                f.truncate(0)
-                json.dump([], f)
+        """Saves query to JSON file"""
+        if self.exists(query.queryID):
+            print("Query already saved...")
+            return False
 
-        if self.data != None:
-            for item in self.data: ## check that query is not already saved
-                if item['id'] == query.queryResult['id']:
-                    print("Query already saved...")
-                    return None
+        else:
+            entry = {}
+            if query.get_result() is None: ## query has not completed
+                entry['id'] = query.queryID
+                entry['name'] = None
+                entry['timestamp'] = None
+                entry['command'] = None
+                self.data[query.queryID] = entry
+                self._update_to_file()
+                return False
 
-        entry = dict()
-        entry['id'] = query.queryResult['id']
-        entry['name'] = query.queryResult['name']
-        entry['timestamp'] = query.queryResult['timestamp']
-        entry['command'] = query.queryResult['command']
+            else:
+                entry['id'] = query.queryResult['id']
+                entry['name'] = query.queryResult['name']
+                entry['timestamp'] = query.queryResult['timestamp']
+                entry['command'] = query.queryResult['command']
+                self.data[query.queryID] = entry
+                self._update_to_file()
+                return True
 
-        with open(self.filename, mode='a', encoding='utf-8') as f:
-            f.seek(f.tell()-1, os.SEEK_SET)
-            f.truncate()
-            if not firstItemFlag:
-                f.write(', ')
-            f.write(json.dumps(entry, indent=4))
-            f.write(']')
+    def delete_query(self, query):
+        """Removes query from JSON file"""
+        if not self.exists(query.queryID):
+            print("No query:%s" % query.queryID, "in storage...")
+            return False
+
+        else:
+            self.data.pop(query.queryID, None)
+            self._update_to_file()
+            return True
 
     def get_query(self, id):
         """returns query by ID"""
         try:
-            return self.data[id]
+            return PeriscopeQuery(id)
 
         except KeyError as err:
             print(err.args[0], "is invalid ID...")

@@ -4,39 +4,40 @@ from Topology import *
 from StorageInterface import *
 from CLI import *
 
-#### FOR TESTING ####
-# s = StorageInterface()
-# print(s.get_query("1250485"))
-# exit(0)
-######################
+
+p = PeriscopeKey()
+
+print(p.is_valid_key())
+
+exit(0)
 
 
+query = PeriscopeQuery() ## create query object
+hosts = query.get_lg_nodes() # add all nodes
+
+query.traceroute(destination="162.151.38.197", ## perform traceroute from each host to 162.151.38.197
+                 hosts=hosts,
+                 verbose=True)
+
+query.check_status(verbose=True) ## check status of request with Periscope API
+
+s = StorageInterface() ## save query
+s.save_query(query)
+
+#################### WORKFLOW #2: Create Graph from Saved Query #####################
+
+
+exit(0)
+
+
+
+
+
+
+
+
+
+###################### CLI ########################
 CLI().cmdloop()
-
-
 exit(0)
 
-
-query1 = PeriscopeQuery(1250485)
-query1.check_status(verbose=True)
-
-
-print(query1.queryResult['id'])
-# query1.traceroute("96.120.12.153", query1.get_available_lg_nodes(3), verbose=True)
-
-j = JSONStorage()
-j.save_query(query1)
-print(j.get_queries())
-
-
-results = query1.parse_result()
-
-topo = Topology()
-topo.add_query(query1, verbose=False)
-
-print(topo.G.order())
-topo.write_to_file('C:/Users/hadend/Desktop/test.graphml')
-
-
-
-exit(0)
