@@ -131,38 +131,16 @@ class PeriscopeQuery():
             return None
 
     def check_status(self, verbose=False):
-        """Checks status of Periscope query"""
+        requestURL = self.api_url + "/measurement/" + str(self.queryID)
+        response = requests.get(requestURL)
+        self.queryStatus = response.json()
 
-        if self.queryID == None:
-            if verbose:
-                print("No query was run...")
-            return None
+        if verbose:
+            for key, item in self.queryStatus.items():
+                print(key, ':', item)
 
-        elif self.queryStatus != None and self.queryStatus['pending'] == 0:
-            if verbose:
-                print(self.queryStatus)
+        return self.queryStatus
 
-            if self.queryResult == None:
-                self.get_result()
-
-            return self.queryStatus
-
-        else:
-            requestURL = self.api_url + "/measurement/" + str(self.queryID)
-            response = requests.get(requestURL)
-
-            decoded_response = response.json()
-
-            if 'errors' in decoded_response.keys():
-                print("Invalid ID...")
-                return None
-
-            self.queryStatus = response.json()['status']
-
-            if verbose:
-                print(self.queryStatus)
-
-            return self.queryStatus
 
     def get_result(self, verbose=False):
         """pulls result from Periscope"""
