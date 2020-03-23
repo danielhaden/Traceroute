@@ -1,5 +1,7 @@
 import mysql.connector as plug
 import config as cfg
+from Periscope import PeriscopeQuery
+
 
 class DBInterface:
     connection = None
@@ -130,3 +132,13 @@ class DBInterface:
             if err.errno == plug.errorcode.ER_PARSE_ERROR:
                 print("SQL syntax is incorrect...")
                 return None
+
+    def where(self, sqlSyntax):
+        preamble = "SELECT * FROM caida_queries WHERE "
+
+        result = self.sql(preamble+sqlSyntax)
+
+        for item in result:
+            query = PeriscopeQuery(item[0])
+            query.get_result(verbose=False)
+            yield query
