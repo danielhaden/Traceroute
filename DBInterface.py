@@ -62,6 +62,60 @@ class DBInterface:
 
             return False
 
+    def add_router_result(self, query):
+        insertPreamble = ("INSERT INTO router_info "
+                    "(caida_id, asn, router, city, country, success, failure, last_queried) "
+                    "VALUES (%s, %s, %s, %s, %s, %s, %s, %s)"
+                    )
+
+        updatePreamble = ("UPDATE router_info "
+                          "SET success=success+1 "
+                          "WHERE caida_id=%s "
+                          )
+
+        result = query.get_result()
+
+        data = result['queries']
+
+        for item in data:
+            inDatabase = self.sql("SELECT * FROM router_info WHERE caida_id=%i" % item['id'])
+
+            if item['status'] == 'completed':
+                success = 1
+                failure = 0
+            else:
+                success = 0
+                failure = 1
+
+            if inDatabase == None:
+                print("got here")
+                data = (item['id'],
+                        item['asn'],
+                        item['router'],
+                        item['city'],
+                        item['country'],
+                        success,
+                        failure,
+                        item['endtime']
+                        )
+
+                cursor = self.connection.cursor()
+                cursor.execute(insertPreamble, data)
+
+                self.connection.commit()
+                cursor.close()
+
+            else:
+                data = (1, item['id'])
+                print(data)
+
+                cursor = self.connection.cursor()
+                cursor.execute(updatePreamble % item['id'])
+
+                self.connection.commit()
+                cursor.close()
+
+
     def sql(self, sqlSyntax):
         try:
             cursor = self.connection.cursor()

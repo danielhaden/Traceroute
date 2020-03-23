@@ -8,7 +8,7 @@ from xml.etree import ElementTree as ET
 class PeriscopeQuery():
     credentials = PeriscopeKey()
     api_url = "https://periscope.caida.org/api/v2"
-    measurement = dict()
+    measurement = {}
     queryID = None
     queryStatus = None
     queryResult = None
@@ -101,12 +101,12 @@ class PeriscopeQuery():
 
         return countries
 
-    def traceroute(self, destination, hosts, verbose=False):
+    def traceroute(self, destination, name, hosts, verbose=False):
         """submits traceroute query from each host to destination"""
 
         self.measurement["argument"] = destination
         self.measurement["command"] = "traceroute"
-        self.measurement["name"] = "test"
+        self.measurement["name"] = name
         self.measurement["hosts"] = hosts
 
         data = json.dumps(self.measurement)
@@ -145,7 +145,7 @@ class PeriscopeQuery():
     def get_result(self, verbose=False):
         """pulls result from Periscope"""
 
-        if self.queryStatus == None or self.queryStatus['pending'] != 0:
+        if self.queryStatus == None or self.queryStatus['status']['pending'] != 0:
             print("Query is not complete...")
             return None
 

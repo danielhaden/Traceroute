@@ -3,11 +3,17 @@ from Periscope import *
 from Topology import *
 from StorageInterface import *
 from CLI import *
+from DBInterface import *
+
+d = DBInterface()
+s = PeriscopeQuery(1250502)
+
+d.add_router_result(s)
 
 
-p = PeriscopeKey()
-
-print(p.is_valid_key())
+# item = d.sql("SELECT * FROM router_info WHERE caida_id=5533437")
+# for thing in item:
+#     print(thing)
 
 exit(0)
 
@@ -24,7 +30,6 @@ query.check_status(verbose=True) ## check status of request with Periscope API
 s = StorageInterface() ## save query
 s.save_query(query)
 
-#################### WORKFLOW #2: Create Graph from Saved Query #####################
 
 
 exit(0)
