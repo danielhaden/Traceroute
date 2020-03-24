@@ -2,15 +2,13 @@ import mysql.connector as plug
 import config as cfg
 from Periscope import PeriscopeQuery
 
-
 class DBInterface:
-    connection = None
-    user = cfg.dbuser
-    password = cfg.dbpassword
-    host = cfg.dbhost
-    database = cfg.database
-
     def __init__(self):
+        self.connection = None
+        self.user = cfg.dbuser
+        self.password = cfg.dbpassword
+        self.host = cfg.dbhost
+        self.database = cfg.database
         self.connect()
 
     def connect(self):
@@ -37,16 +35,15 @@ class DBInterface:
                     )
 
         try:
-            status = query.check_status()
-            data = (status['id'],
-                    status['name'],
-                    status['timestamp'],
-                    status['argument'],
-                    status['command'],
-                    status['queries'],
-                    status['status']['completed'],
-                    status['status']['failed'],
-                    status['status']['pending']
+            data = (query.queryStatus['id'],
+                    query.queryStatus['name'],
+                    query.queryStatus['timestamp'],
+                    query.queryStatus['argument'],
+                    query.queryStatus['command'],
+                    query.queryStatus['queries'],
+                    query.queryStatus['status']['completed'],
+                    query.queryStatus['status']['failed'],
+                    query.queryStatus['status']['pending']
                     )
 
             cursor = self.connection.cursor()
@@ -64,81 +61,72 @@ class DBInterface:
 
             return False
 
-    def add_router_result(self, query):
-        insertPreamble = ("INSERT INTO router_info "
-                    "(caida_id, asn, router, city, country, success, failure, last_queried) "
-                    "VALUES (%s, %s, %s, %s, %s, %s, %s, %s)"
-                    )
+    def add_routers(self, query):
+        for host in query.iter_hosts():
+            sqlSyntax = "SELECT * FROM router_info WHERE asn=%s " \
+                        "AND router='%s' AND city='%s' AND country='%s'" \
+                        % (host['asn'], host['router'], host['city'], host['country'])
 
-        updatePreamble = ("UPDATE router_info "
-                          "SET success=success+1 "
-                          "WHERE caida_id=%s "
-                          )
+            result = self.sql(sqlSyntax)
 
-        result = query.get_result()
+            if result == []:
+                sqlSyntax = "INSERT INTO router_info (asn, router, city, country) " \
+                            "VALUES ('%s', '%s', '%s', '%s')" \
+                            % (host['asn'], host['router'], host['city'], host['country'])
+                self.sql(sqlSyntax, commit=True)
 
-        data = result['queries']
+    def get_router_id(self, trace):
 
-        for item in data:
-            inDatabase = self.sql("SELECT * FROM router_info WHERE caida_id=%i" % item['id'])
+        sqlSyntax = "SELECT * FROM router_info WHERE asn=%s " \
+                    "AND router='%s' AND city='%s' AND country='%s'" \
+                    % (trace.asn, trace.router, trace.city, trace.country)
 
-            if item['status'] == 'completed':
-                success = 1
-                failure = 0
-            else:
-                success = 0
-                failure = 1
+        result = self.sql(sqlSyntax)
 
-            if inDatabase == None:
-                print("got here")
-                data = (item['id'],
-                        item['asn'],
-                        item['router'],
-                        item['city'],
-                        item['country'],
-                        success,
-                        failure,
-                        item['endtime']
-                        )
-
-                cursor = self.connection.cursor()
-                cursor.execute(insertPreamble, data)
-
-                self.connection.commit()
-                cursor.close()
-
-            else:
-                data = (1, item['id'])
-                print(data)
-
-                cursor = self.connection.cursor()
-                cursor.execute(updatePreamble % item['id'])
-
-                self.connection.commit()
-                cursor.close()
+        if result == []:
+            return None
+        else:
+            return result[0][0]
 
 
-    def sql(self, sqlSyntax):
+    def add_result(self, query):
+        for trace in query.traces():
+            router_id = self.get_router_id(trace)
+
+            sqlSyntax = "INSERT INTO results (id, router_id, success, starttime, endtime) " \
+                        "VALUES (%s, %s, %s, '%s', '%s')" \
+                        % (query.queryID, router_id, trace.completed, trace.starttime, trace.endtime)
+
+            self.sql(sqlSyntax, commit=True)
+
+    def sql(self, sqlSyntax, commit=False):
         try:
             cursor = self.connection.cursor()
             cursor.execute(sqlSyntax)
 
-            result = cursor.fetchall()
-            cursor.close()
+            if commit:
+                self.connection.commit()
+                cursor.close()
 
-            return result
+            else:
+                result = cursor.fetchall()
+                cursor.close()
+                return result
 
         except plug.Error as err:
             if err.errno == plug.errorcode.ER_PARSE_ERROR:
                 print("SQL syntax is incorrect...")
                 return None
 
-    def where(self, sqlSyntax):
-        preamble = "SELECT * FROM caida_queries WHERE "
+    def where(self, sqlSyntax=None):
+        if sqlSyntax == None:
+            result = self.sql("SELECT * From caida_queries")
 
-        result = self.sql(preamble+sqlSyntax)
+        else:
+            preamble = "SELECT * FROM caida_queries WHERE "
+            result = self.sql(preamble + sqlSyntax)
 
         for item in result:
             query = PeriscopeQuery(item[0])
-            query.get_result(verbose=False)
+            query.update_result()
             yield query

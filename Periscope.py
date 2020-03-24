@@ -1,25 +1,33 @@
-# python character encoding: utf-8
 from PeriscopeKey import PeriscopeKey
 import requests
 import random
 import json
 from xml.etree import ElementTree as ET
+from Trace import Trace
+
 
 class PeriscopeQuery():
-    credentials = PeriscopeKey()
-    api_url = "https://periscope.caida.org/api/v2"
-    measurement = {}
-    queryID = None
-    queryStatus = None
-    queryResult = None
-
     def __init__(self, id=None):
+        self.credentials = PeriscopeKey()
+        self.api_url = "https://periscope.caida.org/api/v2"
+        self.measurement = {}
+        self.pending = None
+        self.queryID = None
+        self.queryStatus = None
+        self.queryResult = None
+        self.errorFlag = False
+        self.hosts = None
         self.queryID = id
 
         if self.queryID != None:
-            self.check_status()
+            self.update_status()
+
+            if self.queryStatus != None:
+                self.update_result()
 
     def gen_headers(self, data):
+        """Generates HTTP POST headers"""
+
         headers = {
             'Content-type': 'application/json; charset=utf-8',
             'X-Public': self.credentials.public_key,
@@ -27,8 +35,8 @@ class PeriscopeQuery():
         }
         return headers
 
-    def get_lg_nodes(self, command="traceroute", asn=None, router=None, city=None, country=None, number=None, verbose=False):
-        """lists available looking glass servers. Number arg sets number of randomly selected hosts"""
+    def set_traceroute_hosts(self, command="traceroute", asn=None, router=None, city=None, country=None, number=None):
+        """Sets specified servers as traceroute sources. Number arg sets number of randomly selected hosts"""
         hosts = []
         requestURL = self.api_url + "/host/list?command=" + command
 
@@ -48,35 +56,27 @@ class PeriscopeQuery():
         available_hosts = response.json()
 
         try:
-            if number is None:
-                for host in available_hosts:
+            fields = ["asn", "router", "city", "country"]
+            if number is not None:
+                available_hosts = random.sample(available_hosts, number)
+
+            for host in available_hosts:
+                entry = {}
+                for field in fields:
                     try:
-                        hosts.append({"asn": host["asn"], "router": host["router"], "country": host["country"]})
+                        entry[field] = host[field]
 
                     except KeyError as err:
-                        hosts.append({"asn": host["asn"], "router": host["router"], "country": None})
+                        entry[err.args[0]] = ""
 
-                if verbose:
-                    for host in available_hosts:
-                        print(host)
+                hosts.append(entry)
 
-                return hosts
-
-            else:
-                selected_hosts = random.sample(available_hosts, number)
-                for host in selected_hosts:
-                    hosts.append({"asn": host["asn"], "router": host["router"], "country": host["country"]})
-
-                if verbose:
-                    for host in available_hosts:
-                        print(host)
-
-                return hosts
+            self.hosts = hosts
 
         except TypeError:
             if 'errors' in available_hosts.keys(): ## checks that query arg is valid
                 print("Invalid ID...")
-                return None
+                self.hosts = None
 
     def get_lg_countries(self, verbose=False):
         hosts = self.get_lg_nodes()
@@ -101,108 +101,87 @@ class PeriscopeQuery():
 
         return countries
 
-    def traceroute(self, destination, name, hosts, verbose=False):
+    def traceroute(self, destination, name):
         """submits traceroute query from each host to destination"""
 
         self.measurement["argument"] = destination
         self.measurement["command"] = "traceroute"
         self.measurement["name"] = name
-        self.measurement["hosts"] = hosts
+        self.measurement["hosts"] = self.hosts
 
         data = json.dumps(self.measurement)
         headers = self.gen_headers(data)
 
         response = requests.post(self.api_url + "/measurement", data=data, headers=headers)
-        decoded_response = response.json()
-
-        if verbose:
-            print("HTTP response status: " + str(response.status_code))
-            print("HTTP response text:  " + str(response.text))
-            print("Measurement ID: " + str(decoded_response["id"]))
 
         if response.status_code == 201:  ## HTTP 201 = POST request has been successfully created on server
             decoded_response = response.json()
             self.queryID = decoded_response["id"]
-            self.check_status()
-            return decoded_response["id"]
+            self.update_status()
 
         else:
-            print("Response status code error: ", response.status_code)
-            return None
+            self.errorFlag = True
 
-    def check_status(self, verbose=False):
-        requestURL = self.api_url + "/measurement/" + str(self.queryID)
-        response = requests.get(requestURL)
-        self.queryStatus = response.json()
+    def update_status(self):
+        """Gets query status from CAIDA server"""
+        try:
+            requestURL = self.api_url + "/measurement/" + str(self.queryID)
+            response = requests.get(requestURL)
+            self.queryStatus = response.json()
+            self.pending = self.queryStatus['status']['pending']
 
-        if verbose:
-            for key, item in self.queryStatus.items():
-                print(key, ':', item)
+        except KeyError:
+            print("Invalid or missing query ID...")
+            self.queryStatus = None
 
-        return self.queryStatus
-
-
-    def get_result(self, verbose=False):
+    def update_result(self):
         """pulls result from Periscope"""
+        self.update_status()
 
-        if self.queryStatus == None or self.queryStatus['status']['pending'] != 0:
-            print("Query is not complete...")
+        if self.queryStatus == None or self.pending !=0:
+            self.queryResult = None
+
+        else:
+            requestURL = self.api_url + "/measurement/" \
+                                      + str(self.queryID) \
+                                      + "/result?format=raw"
+            response = requests.get(requestURL)
+            self.queryResult = response.json()
+
+    def traces(self):
+        "yields all traceroutes of query"
+        if self.queryResult == None:
             return None
 
-        requestURL = self.api_url + "/measurement/" + str(self.queryID) + "/result?format=raw"
-        response = requests.get(requestURL)
-        self.queryResult = response.json()
+        for raw_trace in self.queryResult['queries']:
+            yield Trace(raw_trace)
 
-        if verbose:
-            for key, value in self.queryResult.items():
-                print(key, ":", value)
+    def bad_traces(self):
+        "yields failed traceroutes of query"
+        if self.queryResult == None:
+            return None
 
-        return self.queryResult
+        for raw_trace in self.queryResult['queries']:
+            trace = Trace(raw_trace)
 
-    def parse_result(self):
-        """returns nested dictionary of results"""
+            if not trace.completed:
+                yield trace
 
-        out = dict()
-        for index, item in enumerate(self.queryResult['queries']):
-            if item['status'] == 'completed':
-                lines = item['result'].splitlines()
+    def good_traces(self):
+        "yields completed traceroutes of query"
+        if self.queryResult == None:
+            return None
 
-                trace = dict()
-                for line in lines:
-                    words = line.split()
+        for raw_trace in self.queryResult['queries']:
+            trace = Trace(raw_trace)
 
-                    if len(words) != 0:
-                        hop = words.pop(0)
-                        if hop.isdigit():
-                            trace[hop] = dict()
+            if trace.completed:
+                yield trace
 
-                            if words[0] == '*':
-                                trace[hop]['ip'] = '*'
-                                trace[hop]['name'] = '*'
-                                trace[hop]['time'] = ['*', '*', '*']
+    def iter_hosts(self):
+        "yields hosts"
+        if self.hosts == None:
+            return None
 
-                            else:
-                                trace[hop]['ip'] = words[1].strip('()')
-                                trace[hop]['name'] = words[0]
-                                trace[hop]['time'] = [words[2], words[4], words[6]]
-
-                out[index] = trace
-
-        return out
-
-    def get_trace_indices(self):
-        result = self.parse_result()
-        return list(result.keys())
-
-    def print_trace(self):
-        result = self.parse_result()
-        for key, value in result.items():
-            for step, data in value.items():
-                print(step, "\t",data['ip'], "\t", data['name'], "\t", data['time'])
-
-            print("\n")
-
-    def items(self, tracenumber):
-        result = self.parse_result()
-        for hop, data in result[tracenumber].items():
-            yield hop, data['ip'], data['name'], data['time']
+        for host in self.hosts:
+            yield host
