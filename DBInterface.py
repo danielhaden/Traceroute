@@ -76,6 +76,8 @@ class DBInterface:
                 self.sql(sqlSyntax, commit=True)
 
     def get_router_id(self, trace):
+        if trace.city != None:
+            trace.city = trace.city.replace("'","")
 
         sqlSyntax = "SELECT * FROM router_info WHERE asn=%s " \
                     "AND router='%s' AND city='%s' AND country='%s'" \
@@ -92,6 +94,7 @@ class DBInterface:
     def add_result(self, query):
         for trace in query.traces():
             router_id = self.get_router_id(trace)
+
 
             sqlSyntax = "INSERT INTO results (id, router_id, success, starttime, endtime) " \
                         "VALUES (%s, %s, %s, '%s', '%s')" \
@@ -116,6 +119,7 @@ class DBInterface:
         except plug.Error as err:
             if err.errno == plug.errorcode.ER_PARSE_ERROR:
                 print("SQL syntax is incorrect...")
+                print(sqlSyntax)
                 return None
 
     def where(self, sqlSyntax=None):

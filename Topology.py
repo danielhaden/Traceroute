@@ -10,24 +10,13 @@ class Topology:
     def write_to_file(self, filename):
         nx.write_graphml(self.G, filename)
 
-    def add_query(self, query, verbose=False):
+    def add_query(self, trace, verbose=False):
+        antecedent = None
+        for hop in trace.hops():
+            currentVertex = hop[1]['ip']
+            self.G.add_node(currentVertex)
 
-        for index in query.get_trace_indices():
+            if antecedent != None:
+                self.G.add_edge(antecedent, currentVertex)
 
-            antecedent = None
-            for hop, ip, name, time in query.items(index):
-
-                if ip!='*':
-                    self.G.add_node(ip, name=name, t1=time[0], t2=time[1], t3=time[2])
-                    if verbose:
-                        print("Added node", ip)
-
-                    if antecedent != None: ## add edge if previous node was connected
-                        self.G.add_edge(antecedent, ip)
-                        if verbose:
-                            print("Added link between", antecedent, "and", ip)
-
-                    antecedent = ip
-
-                else:
-                    antecedent = None
+            antecedent = currentVertex

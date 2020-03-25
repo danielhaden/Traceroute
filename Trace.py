@@ -1,9 +1,7 @@
 import re
 
-
 class Trace:
     def __init__(self, dataDict):
-        # self.caida_id = dataDict['id']
         self.city = dataDict['city']
         self.country = dataDict['country']
         self.starttime = dataDict['starttime']
@@ -59,7 +57,7 @@ class Trace:
 
         return trace
 
-    def items(self):
+    def hops(self):
         if self.completed:
             for key, item in self.result.items():
                 yield key, item
@@ -69,7 +67,7 @@ class Trace:
 
     def pprint(self):
 
-        print("### Traceroute from server", self.caida_id, "in", self.city, ",", self.country, ":")
+        print("### Traceroute from server", "in", self.city, ",", self.country, ":")
 
 
         if self.completed:

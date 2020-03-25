@@ -67,7 +67,7 @@ class PeriscopeQuery():
                         entry[field] = host[field]
 
                     except KeyError as err:
-                        entry[err.args[0]] = ""
+                        entry[err.args[0]] = " "
 
                 hosts.append(entry)
 
